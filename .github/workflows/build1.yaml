@@ -1,0 +1,50 @@
+# GitHub Actions 工作流配置：构建 Android 应用
+
+name: android_build
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 克隆 TVBoxOS 仓库
+        run: |
+          # 强制覆盖克隆以防止残留文件
+          git clone --depth=1 https://github.com/fenwehome/TVBoxOSC.git TVBoxOSC_temp && mv TVBoxOSC_temp TVBoxOSC || true
+
+      - name: Gradle 缓存
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('TVBoxOSC/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: 构建应用
+        working-directory: TVBoxOSC
+        run: |
+          # 确保 gradlew 具有执行权限
+          chmod +x gradlew
+          # 清理旧构建并启用完整堆栈跟踪进行调试
+          ./gradlew clean assembleDebug --stacktrace
+          # 如果需要启用构建扫描，请确保已同意服务条款，并在仓库的 gradle.properties 中配置相关属性
+          ./gradlew clean assembleDebug --stacktrace --scan
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVBoxOSC-APK
+          path: TVBoxOSC/app/build/outputs/apk/debug/*.apk
